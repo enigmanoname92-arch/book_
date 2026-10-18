@@ -1,0 +1,1092 @@
+<!doctype html>
+<html lang="hy">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Իմ թվային գիրքը</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #332b25;
+      --muted: #76695f;
+      --accent: #76513c;
+      --paper: #fffaf0;
+      --paper-edge: #e9ddc8;
+      --desk: #29352f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      color: var(--ink);
+      background: radial-gradient(ellipse at center, #526055 0, var(--desk) 70%);
+      font-family: Georgia, "Noto Serif Armenian", serif;
+    }
+    button, input, select { font: inherit; }
+    button {
+      border: 1px solid #c9b49b;
+      border-radius: 7px;
+      padding: 8px 12px;
+      color: #43372d;
+      background: #fffaf0;
+      cursor: pointer;
+      transition: background .16s, transform .16s;
+    }
+    button:hover { background: #f2e7d5; }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .48; cursor: not-allowed; }
+    .app { max-width: 1320px; margin: auto; padding: 18px 22px 24px; }
+    .topbar, .toolbar, .bottom-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 9px;
+    }
+    .topbar { justify-content: space-between; margin: 0 auto 14px; color: #fff8e8; }
+    .topbar h1 { margin: 0; font-size: clamp(20px, 3vw, 28px); font-weight: 500; }
+    .top-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .top-actions button { font-size: 14px; }
+    .toolbar { margin: 0 auto 14px; }
+    .toolbar select { max-width: min(380px, 55vw); }
+    select, input[type="text"], input[type="number"] {
+      border: 1px solid #c9b49b;
+      border-radius: 7px;
+      padding: 8px 10px;
+      color: var(--ink);
+      background: #fffaf0;
+    }
+    .save-state { min-width: 92px; color: #eee4d2; font-size: 13px; text-align: center; }
+    .book {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      width: min(1100px, 100%);
+      min-height: min(70vh, 720px);
+      margin: auto;
+      perspective: 1900px;
+      filter: drop-shadow(0 24px 24px #10191480);
+    }
+    .book::before {
+      position: absolute;
+      z-index: 4;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 30px;
+      content: "";
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, #6d543d33, #fff8e566 44%, #57432e55);
+      pointer-events: none;
+    }
+    .page {
+      position: relative;
+      min-width: 0;
+      min-height: 620px;
+      padding: 28px clamp(20px, 4vw, 48px) 54px;
+      overflow: auto;
+      background:
+        repeating-linear-gradient(0deg, transparent 0 31px, #bda98b15 32px),
+        var(--paper);
+      box-shadow: inset 0 0 25px #8c715126, inset 0 0 0 1px #d7c6aa;
+    }
+    .page:first-child { border-radius: 8px 0 0 8px; box-shadow: inset -12px 0 18px -18px #3d2b1a, inset 0 0 0 1px #d7c6aa; }
+    .page:last-child { border-radius: 0 8px 8px 0; box-shadow: inset 12px 0 18px -18px #3d2b1a, inset 0 0 0 1px #d7c6aa; }
+    .page:focus-visible { outline: 3px solid #c59b65; outline-offset: -4px; }
+    .page-title {
+      display: block;
+      width: 100%;
+      margin: 0 0 18px;
+      padding: 0 0 10px;
+      border: 0;
+      border-bottom: 1px solid #d8c9b2;
+      border-radius: 0;
+      outline: 0;
+      background: transparent;
+      font-size: 19px;
+      font-weight: bold;
+    }
+    .page-title::placeholder { color: #a69783; font-weight: normal; }
+    .page-body { min-height: 460px; line-height: 1.75; overflow-wrap: anywhere; }
+    .page-body:empty::before { color: #ac9e8a; content: "Սեղմեք էջի վրա՝ բովանդակություն ավելացնելու համար…"; pointer-events: none; }
+    body:not(.author-mode) .page-body:empty::before { content: "Այս էջը դեռ դատարկ է։"; }
+    .page-body.editing { outline: 1px dashed #c2a883; outline-offset: 5px; }
+    .page-body img { display: block; max-width: 100%; }
+    .page-number {
+      position: absolute;
+      bottom: 15px;
+      left: 0;
+      width: 100%;
+      color: #897963;
+      font-size: 13px;
+      text-align: center;
+    }
+    .image-item { position: relative; width: 100%; max-width: 100%; margin: 14px 0; }
+    .image-item img { width: 100%; height: auto; border-radius: 3px; cursor: grab; user-select: none; }
+    .image-item.dragging img { cursor: grabbing; }
+    .image-item .delete-item { position: absolute; z-index: 2; top: 5px; right: 5px; padding: 4px 8px; }
+    .resize-handle {
+      position: absolute;
+      right: 2px;
+      bottom: 2px;
+      width: 18px;
+      height: 18px;
+      border: 2px solid white;
+      border-radius: 4px;
+      background: #76513c;
+      cursor: nwse-resize;
+    }
+    .file-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px solid #ddceb9;
+      border-radius: 9px;
+      background: #fffdf7c9;
+    }
+    .file-icon { font-size: 25px; }
+    .file-info { min-width: 0; flex: 1; }
+    .file-name { overflow-wrap: anywhere; font-weight: bold; }
+    .file-size { color: var(--muted); font-size: 12px; }
+    .file-card button { padding: 6px 9px; white-space: nowrap; }
+    .media-item { margin: 14px 0; }
+    .media-item audio, .media-item video { width: 100%; max-height: 350px; }
+    .pdf-item { width: 100%; height: 420px; margin: 12px 0; border: 1px solid #ddceb9; }
+    .element-caption { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .bottom-nav { min-height: 54px; margin-top: 13px; color: #fff8e8; }
+    .bottom-nav .count { min-width: 110px; text-align: center; font-size: 15px; }
+    .turning { transform-style: preserve-3d; }
+    .turn-forward { transform-origin: left center; animation: turnForward .48s ease-in-out; }
+    .turn-backward { transform-origin: right center; animation: turnBackward .48s ease-in-out; }
+    @keyframes turnForward { 0% { transform: rotateY(0); } 48% { transform: rotateY(-82deg); } 100% { transform: rotateY(0); } }
+    @keyframes turnBackward { 0% { transform: rotateY(0); } 48% { transform: rotateY(82deg); } 100% { transform: rotateY(0); } }
+    .modal-backdrop {
+      position: fixed;
+      z-index: 10;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: #101712a8;
+    }
+    .modal {
+      width: min(440px, 100%);
+      padding: 22px;
+      border: 1px solid #d9c7ac;
+      border-radius: 13px;
+      background: #fffaf0;
+      box-shadow: 0 18px 60px #0005;
+    }
+    .modal h2 { margin: 0 0 14px; font-size: 21px; }
+    .modal p { color: var(--muted); line-height: 1.55; }
+    .modal-options { display: grid; gap: 9px; }
+    .modal-options button { text-align: left; }
+    .modal-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .editor-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+    .editor-tools button { padding: 5px 9px; }
+    .status-message {
+      position: fixed;
+      z-index: 20;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(420px, calc(100vw - 36px));
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: white;
+      background: #263b31;
+      box-shadow: 0 5px 22px #0004;
+    }
+    .status-message.error { background: #8c352f; }
+    .admin-entry {
+      position: fixed;
+      z-index: 5;
+      right: 3px;
+      bottom: 3px;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      opacity: .035;
+      background: #fffaf0;
+    }
+    .admin-entry:hover, .admin-entry:focus-visible { opacity: .8; }
+    body:not(.author-mode) #addPageBtn,
+    body:not(.author-mode) #deletePageBtn,
+    body:not(.author-mode) #movePageBtn,
+    body:not(.author-mode) #exportBtn,
+    body:not(.author-mode) #importBtn,
+    body:not(.author-mode) #saveState { display: none !important; }
+    body:not(.author-mode) .delete-item,
+    body:not(.author-mode) .resize-handle,
+    body:not(.author-mode) .editor-tools,
+    body:not(.author-mode) .editable-text { display: none !important; }
+    .page-title-display {
+      display: block;
+      min-height: 31px;
+      width: 100%;
+      margin: 0 0 18px;
+      padding: 0 0 10px;
+      border-bottom: 1px solid #d8c9b2;
+      font-size: 19px;
+      font-weight: bold;
+      overflow-wrap: anywhere;
+    }
+    .author-exit { font-size: 13px; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 700px) {
+      .app { padding: 12px 12px 20px; }
+      .topbar { align-items: flex-start; gap: 10px; }
+      .topbar h1 { padding-top: 5px; }
+      .top-actions { justify-content: flex-end; max-width: 62%; }
+      .top-actions button { padding: 7px 9px; font-size: 12px; }
+      .toolbar { gap: 6px; }
+      .toolbar button, .toolbar select { padding: 7px 8px; font-size: 13px; }
+      .book { display: block; min-height: 72vh; }
+      .book::before { display: none; }
+      .page { display: none; min-height: 72vh; padding: 22px 22px 48px; border-radius: 8px !important; }
+      .page.active { display: block; }
+      .page-body { min-height: 55vh; }
+      .page-number { bottom: 12px; }
+      .bottom-nav { gap: 7px; }
+      .bottom-nav button { padding: 7px 9px; font-size: 13px; }
+    }
+    @media print {
+      body { background: white; }
+      .app { max-width: none; padding: 0; }
+      .topbar, .toolbar, .bottom-nav, .modal-backdrop, .status-message, .delete-item, .resize-handle { display: none !important; }
+      .book { display: block; width: 100%; filter: none; page-break-after: always; }
+      .book::before { display: none; }
+      .page, .page.active { display: block !important; min-height: 0; height: auto; overflow: visible; border: 0; border-radius: 0; box-shadow: none !important; page-break-after: always; }
+      .page-body { min-height: 0; }
+      .pdf-item { height: 650px; }
+      .image-item img { max-height: 650px; object-fit: contain; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <h1>📖 Իմ թվային գիրքը</h1>
+      <div class="top-actions">
+        <button id="exportBtn" type="button">Արտահանել գիրքը</button>
+        <button id="importBtn" type="button">Ներմուծել գիրքը</button>
+        <button id="printBtn" type="button">Տպել / Պահպանել PDF</button>
+      </div>
+    </header>
+    <nav class="toolbar" aria-label="Գրքի կառավարում">
+      <label class="visually-hidden" for="toc">Բովանդակության ցանկ</label>
+      <select id="toc" title="Բովանդակության ցանկ">
+        <option value="">Բովանդակության ցանկ</option>
+      </select>
+      <button id="addPageBtn" type="button">＋ Ավելացնել նոր էջ</button>
+      <button id="deletePageBtn" type="button">Ջնջել էջը</button>
+      <button id="movePageBtn" type="button">Տեղափոխել էջը</button>
+      <span id="saveState" class="save-state" role="status">Բեռնվում է…</span>
+      <button id="authorExitBtn" class="author-exit" type="button" hidden>Փակել հեղինակի ռեժիմը</button>
+    </nav>
+    <section id="book" class="book" aria-label="Թվային գիրք"></section>
+    <nav class="bottom-nav" aria-label="Էջերի համարակալում">
+      <button id="previousBtn" type="button" aria-label="Նախորդ էջ">← Նախորդ</button>
+      <span id="pageCount" class="count"></span>
+      <button id="nextBtn" type="button" aria-label="Հաջորդ էջ">Հաջորդ →</button>
+    </nav>
+  </main>
+  <input id="fileInput" type="file" hidden>
+  <input id="importInput" type="file" accept=".json,.html,.htm,application/json,text/html" hidden>
+  <button id="adminEntry" class="admin-entry" type="button" aria-label="Հեղինակի մուտք" title="Հեղինակի մուտք"></button>
+  <div id="modalRoot"></div>
+  <div id="statusRoot" aria-live="polite"></div>
+  <script>
+    "use strict";
+    (() => {
+      const DB_NAME = "digital-book-hy";
+      const DB_VERSION = 1;
+      const STORE_NAME = "books";
+      const BOOK_KEY = "main-book";
+      const MAX_FILE_SIZE = 15 * 1024 * 1024;
+      const MAX_TOTAL_SIZE = 100 * 1024 * 1024;
+      // Փոխարինեք ձեր գաղտնաբառի SHA-256 հեշով (64 տասնվեցական նիշ)։
+      const ADMIN_PASSWORD_SHA256 = "a320480f534776bddb5cdb54b1e93d210a3c7d199e80a23c1b2178497b184c76";
+      const bookElement = document.getElementById("book");
+      const toc = document.getElementById("toc");
+      const saveState = document.getElementById("saveState");
+      const fileInput = document.getElementById("fileInput");
+      const importInput = document.getElementById("importInput");
+      const modalRoot = document.getElementById("modalRoot");
+      const statusRoot = document.getElementById("statusRoot");
+      let book = { pages: [] };
+      let currentPage = 0;
+      let db;
+      let saveTimer;
+      let currentUploadPage = null;
+      let textEditing = false;
+      let isAuthor = false;
+      let adminDialogOpen = false;
+
+      function setAuthorMode(enabled) {
+        isAuthor = enabled;
+        document.body.classList.toggle("author-mode", enabled);
+        document.getElementById("authorExitBtn").hidden = !enabled;
+        render();
+      }
+      async function sha256Hex(value) {
+        if (!window.crypto || !crypto.subtle || !window.TextEncoder) {
+          throw new Error("Գաղտնաբառի SHA-256 ստուգման համար օգտագործեք թարմ դիտարկիչ կամ Live Server։");
+        }
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+        return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      }
+      function requestAuthorMode() {
+        if (isAuthor || adminDialogOpen) return;
+        if (!/^[a-f0-9]{64}$/i.test(ADMIN_PASSWORD_SHA256)) {
+          notify("Սկզբում կոդում սահմանեք ADMIN_PASSWORD_SHA256-ի 64-նիշ SHA-256 հեշը։", true);
+          return;
+        }
+        adminDialogOpen = true;
+        const form = document.createElement("form");
+        const label = document.createElement("label");
+        label.textContent = "Հեղինակի գաղտնաբառ";
+        const input = document.createElement("input");
+        input.type = "password";
+        input.autocomplete = "current-password";
+        input.required = true;
+        input.style.width = "100%";
+        input.style.marginTop = "8px";
+        label.append(input);
+        form.append(label);
+        const unlock = document.createElement("button");
+        unlock.type = "submit";
+        unlock.textContent = "Մուտք գործել";
+        const backdrop = showModal("Հեղինակի մուտք", form, [unlock]);
+        const observer = new MutationObserver(() => {
+          if (!backdrop.isConnected) {
+            adminDialogOpen = false;
+            observer.disconnect();
+          }
+        });
+        observer.observe(modalRoot, { childList: true });
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          unlock.disabled = true;
+          try {
+            const enteredHash = await sha256Hex(input.value);
+            if (enteredHash !== ADMIN_PASSWORD_SHA256.toLowerCase()) {
+              input.value = "";
+              input.setCustomValidity("Գաղտնաբառը սխալ է։");
+              input.reportValidity();
+              input.setCustomValidity("");
+              return;
+            }
+            backdrop.remove();
+            adminDialogOpen = false;
+            setAuthorMode(true);
+            if (location.hash === "#admin") history.replaceState(null, "", location.pathname + location.search);
+            notify("Հեղինակի ռեժիմը միացված է։");
+          } catch (error) {
+            notify(error.message || "Գաղտնաբառը ստուգել չհաջողվեց։", true);
+          } finally {
+            unlock.disabled = false;
+          }
+        });
+        input.focus();
+      }
+
+      const newPage = () => ({ id: makeId(), title: "", elements: [] });
+      function makeId() {
+        return (typeof crypto !== "undefined" && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      }
+      function openDatabase() {
+        return new Promise((resolve, reject) => {
+          if (!("indexedDB" in window)) {
+            reject(new Error("Այս դիտարկիչում IndexedDB-ը հասանելի չէ։"));
+            return;
+          }
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+          request.onupgradeneeded = () => {
+            const database = request.result;
+            if (!database.objectStoreNames.contains(STORE_NAME)) database.createObjectStore(STORE_NAME);
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error("Չհաջողվեց բացել IndexedDB-ը։"));
+        });
+      }
+      function readBook() {
+        return new Promise((resolve, reject) => {
+          const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(BOOK_KEY);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error("Չհաջողվեց կարդալ պահված գիրքը։"));
+        });
+      }
+      function persistBook() {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(STORE_NAME, "readwrite");
+          transaction.objectStore(STORE_NAME).put(book, BOOK_KEY);
+          transaction.oncomplete = resolve;
+          transaction.onerror = () => reject(transaction.error || new Error("Չհաջողվեց պահպանել գիրքը։"));
+          transaction.onabort = () => reject(transaction.error || new Error("Գրքի պահպանումը չեղարկվեց։"));
+        });
+      }
+      function scheduleSave() {
+        if (!db) return;
+        clearTimeout(saveTimer);
+        saveState.textContent = "Պահպանում…";
+        saveTimer = setTimeout(async () => {
+          try {
+            await persistBook();
+            saveState.textContent = "Պահպանված է";
+          } catch (error) {
+            saveState.textContent = "Չպահպանվեց";
+            notify(error.message || "Գիրքը չհաջողվեց պահպանել։", true);
+          }
+        }, 300);
+      }
+      function notify(message, isError = false) {
+        statusRoot.replaceChildren();
+        const box = document.createElement("div");
+        box.className = "status-message" + (isError ? " error" : "");
+        box.textContent = message;
+        statusRoot.append(box);
+        setTimeout(() => box.remove(), 4500);
+      }
+      function current() { return book.pages[currentPage]; }
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+        })[char]);
+      }
+      function sanitizeHtml(html) {
+        const parsed = new DOMParser().parseFromString(String(html), "text/html");
+        const allowed = new Set(["B", "STRONG", "I", "EM", "U", "P", "BR", "H1", "H2", "H3", "UL", "OL", "LI", "BLOCKQUOTE", "SPAN"]);
+        const cleanNode = (node) => {
+          [...node.childNodes].forEach((child) => {
+            if (child.nodeType === Node.ELEMENT_NODE) {
+              if (!allowed.has(child.tagName)) {
+                child.replaceWith(...child.childNodes);
+                return;
+              }
+              [...child.attributes].forEach((attribute) => {
+                if (child.tagName !== "SPAN" || attribute.name !== "style" || !/^font-size:\s*(?:[1-7]|[1-9][0-9]?)(?:px|pt|em|rem);?$/i.test(attribute.value.trim())) {
+                  child.removeAttribute(attribute.name);
+                }
+              });
+              cleanNode(child);
+            } else if (child.nodeType !== Node.TEXT_NODE) child.remove();
+          });
+        };
+        cleanNode(parsed.body);
+        return parsed.body.innerHTML;
+      }
+      function formatSize(bytes) {
+        if (bytes < 1024) return bytes + " բայթ";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " ԿԲ";
+        return (bytes / 1024 / 1024).toFixed(1) + " ՄԲ";
+      }
+      function fileKind(file) {
+        const type = (file.type || "").toLowerCase();
+        const name = file.name.toLowerCase();
+        if (type.startsWith("image/") && /image\/(jpeg|png|gif|webp)/.test(type)) return "image";
+        if (type === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+        if (type.startsWith("audio/")) return "audio";
+        if (type.startsWith("video/")) return "video";
+        return "file";
+      }
+      function createElementRecord(file) {
+        return { id: makeId(), type: fileKind(file), name: file.name, mime: file.type || "application/octet-stream", size: file.size, blob: file };
+      }
+      function objectUrlFor(element) {
+        if (!(element.blob instanceof Blob)) throw new Error("Ֆայլի տվյալները վնասված են կամ բացակայում են։");
+        return URL.createObjectURL(element.blob);
+      }
+      function renderElement(element) {
+        if (element.type === "text") {
+          const text = document.createElement("div");
+          text.className = "text-item";
+          text.dataset.elementId = element.id;
+          text.innerHTML = sanitizeHtml(element.html || "");
+          return text;
+        }
+        const wrapper = document.createElement("div");
+        wrapper.dataset.elementId = element.id;
+        try {
+          const url = objectUrlFor(element);
+          if (element.type === "image") {
+            wrapper.className = "image-item";
+            wrapper.style.width = (element.width || 100) + "%";
+            wrapper.style.transform = `translate(${element.x || 0}%, ${element.y || 0}%)`;
+            const img = document.createElement("img");
+            img.src = url;
+            img.alt = element.name || "Գրքի նկար";
+            img.draggable = false;
+            wrapper.append(img);
+            if (isAuthor) {
+              wrapper.append(deleteButton(element.id), resizeHandle(element));
+              enableImageMovement(wrapper, element);
+            }
+          } else if (element.type === "pdf") {
+            wrapper.className = "pdf-item-wrap";
+            const frame = document.createElement("iframe");
+            frame.className = "pdf-item";
+            frame.src = url;
+            frame.title = element.name || "PDF նախադիտում";
+            wrapper.append(frame);
+            if (isAuthor) wrapper.append(deleteButton(element.id));
+          } else if (element.type === "audio" || element.type === "video") {
+            wrapper.className = "media-item";
+            const player = document.createElement(element.type);
+            player.controls = true;
+            player.src = url;
+            player.preload = "metadata";
+            wrapper.append(player);
+            if (isAuthor) wrapper.append(deleteButton(element.id));
+          } else {
+            wrapper.className = "file-card";
+            const icon = document.createElement("span");
+            icon.className = "file-icon";
+            icon.textContent = "📎";
+            const info = document.createElement("div");
+            info.className = "file-info";
+            const name = document.createElement("div");
+            name.className = "file-name";
+            name.textContent = element.name || "Ֆայլ";
+            const size = document.createElement("div");
+            size.className = "file-size";
+            size.textContent = formatSize(element.size || 0);
+            info.append(name, size);
+            const download = document.createElement("a");
+            download.href = url;
+            download.download = element.name || "file";
+            const downloadButton = document.createElement("button");
+            downloadButton.type = "button";
+            downloadButton.textContent = "Ներբեռնել";
+            download.append(downloadButton);
+            wrapper.append(icon, info, download);
+            if (isAuthor) wrapper.append(deleteButton(element.id));
+          }
+        } catch (error) {
+          wrapper.className = "file-card";
+          wrapper.textContent = "Ֆայլը հնարավոր չէ ցուցադրել․ " + error.message;
+        }
+        return wrapper;
+      }
+      function deleteButton(id) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "delete-item";
+        button.textContent = "Ջնջել";
+        button.title = "Ջնջել այս տարրը";
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          current().elements = current().elements.filter((element) => element.id !== id);
+          render();
+          scheduleSave();
+        });
+        return button;
+      }
+      function resizeHandle(element) {
+        const handle = document.createElement("span");
+        handle.className = "resize-handle";
+        handle.title = "Չափափոխել նկարը";
+        handle.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const startX = event.clientX;
+          const startWidth = element.width || 100;
+          const pageWidth = bookElement.querySelector(".page.active .page-body").clientWidth;
+          handle.setPointerCapture(event.pointerId);
+          const move = (moveEvent) => {
+            element.width = Math.max(15, Math.min(100, startWidth + (moveEvent.clientX - startX) / pageWidth * 100));
+            handle.parentElement.style.width = element.width + "%";
+          };
+          const finish = () => {
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", finish);
+            scheduleSave();
+          };
+          handle.addEventListener("pointermove", move);
+          handle.addEventListener("pointerup", finish, { once: true });
+        });
+        return handle;
+      }
+      function enableImageMovement(wrapper, element) {
+        const image = wrapper.querySelector("img");
+        image.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          wrapper.classList.add("dragging");
+          image.setPointerCapture(event.pointerId);
+          const startX = event.clientX, startY = event.clientY;
+          const startLeft = element.x || 0, startTop = element.y || 0;
+          const page = wrapper.closest(".page-body");
+          const width = Math.max(1, page.clientWidth), height = Math.max(1, page.clientHeight);
+          const move = (moveEvent) => {
+            element.x = startLeft + (moveEvent.clientX - startX) / width * 100;
+            element.y = startTop + (moveEvent.clientY - startY) / height * 100;
+            wrapper.style.transform = `translate(${element.x}%, ${element.y}%)`;
+          };
+          const finish = () => {
+            wrapper.classList.remove("dragging");
+            image.removeEventListener("pointermove", move);
+            image.removeEventListener("pointerup", finish);
+            scheduleSave();
+          };
+          image.addEventListener("pointermove", move);
+          image.addEventListener("pointerup", finish, { once: true });
+        });
+      }
+      function renderPage(page, index, active) {
+        const section = document.createElement("article");
+        section.className = "page" + (active ? " active" : "");
+        section.dataset.pageIndex = String(index);
+        section.tabIndex = 0;
+        section.setAttribute("aria-label", `Էջ ${index + 1}`);
+        let title;
+        if (isAuthor) {
+          title = document.createElement("input");
+          title.className = "page-title";
+          title.type = "text";
+          title.placeholder = "Էջի վերնագիր";
+          title.value = page.title || "";
+          title.setAttribute("aria-label", "Էջի վերնագիր");
+          title.addEventListener("click", (event) => event.stopPropagation());
+          title.addEventListener("input", () => {
+            page.title = title.value;
+            updateToc();
+            scheduleSave();
+          });
+        } else {
+          title = document.createElement("div");
+          title.className = "page-title-display";
+          title.textContent = page.title || "";
+        }
+        const body = document.createElement("div");
+        body.className = "page-body";
+        body.dataset.pageId = page.id;
+        page.elements.forEach((element) => body.append(renderElement(element)));
+        body.addEventListener("click", (event) => {
+          if (isAuthor && !event.target.closest("button, a, iframe, audio, video, input")) openPageMenu(index);
+        });
+        body.addEventListener("dragover", (event) => {
+          if (isAuthor) {
+            event.preventDefault();
+            body.style.outline = "2px dashed #a47a4c";
+          }
+        });
+        body.addEventListener("dragleave", () => { if (isAuthor) body.style.outline = ""; });
+        body.addEventListener("drop", (event) => {
+          if (!isAuthor) return;
+          event.preventDefault();
+          body.style.outline = "";
+          addFiles([...event.dataTransfer.files], index);
+        });
+        const number = document.createElement("div");
+        number.className = "page-number";
+        number.textContent = String(index + 1);
+        section.append(title, body, number);
+        return section;
+      }
+      function render() {
+        if (!book.pages.length) book.pages.push(newPage());
+        currentPage = Math.max(0, Math.min(currentPage, book.pages.length - 1));
+        const mobile = window.matchMedia("(max-width: 700px)").matches;
+        const indices = mobile ? [currentPage] : [currentPage - currentPage % 2, currentPage - currentPage % 2 + 1];
+        bookElement.replaceChildren();
+        indices.forEach((index) => {
+          if (book.pages[index]) bookElement.append(renderPage(book.pages[index], index, index === currentPage || (!mobile && index === currentPage + 1)));
+        });
+        updateToc();
+        document.getElementById("pageCount").textContent = `Էջ ${currentPage + 1} / ${book.pages.length}`;
+        document.getElementById("previousBtn").disabled = currentPage === 0;
+        document.getElementById("nextBtn").disabled = window.matchMedia("(max-width: 700px)").matches
+          ? currentPage >= book.pages.length - 1
+          : currentPage >= book.pages.length - 2;
+        document.getElementById("deletePageBtn").disabled = !isAuthor || book.pages.length <= 1;
+        document.getElementById("authorExitBtn").hidden = !isAuthor;
+      }
+      function updateToc() {
+        const selected = String(currentPage);
+        toc.replaceChildren();
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Բովանդակության ցանկ";
+        toc.append(placeholder);
+        book.pages.forEach((page, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = `${index + 1}. ${page.title.trim() || "Անվերնագիր էջ"}`;
+          toc.append(option);
+        });
+        toc.value = selected;
+      }
+      function flipTo(index, direction) {
+        if (index < 0 || index >= book.pages.length || index === currentPage) return;
+        const activePage = bookElement.querySelector(".page.active") || bookElement.querySelector(".page");
+        if (!activePage) { currentPage = index; render(); return; }
+        activePage.classList.add("turning", direction === "next" ? "turn-forward" : "turn-backward");
+        setTimeout(() => {
+          currentPage = index;
+          render();
+        }, 240);
+      }
+      function moveBy(amount) {
+        const step = window.matchMedia("(max-width: 700px)").matches || currentPage % 2 === 1 ? 1 : 2;
+        flipTo(currentPage + Math.sign(amount) * step, amount > 0 ? "next" : "previous");
+      }
+      function showModal(title, content, actions = []) {
+        const backdrop = document.createElement("div");
+        backdrop.className = "modal-backdrop";
+        const modal = document.createElement("section");
+        modal.className = "modal";
+        modal.setAttribute("role", "dialog");
+        modal.setAttribute("aria-modal", "true");
+        const heading = document.createElement("h2");
+        heading.textContent = title;
+        modal.append(heading, content);
+        const row = document.createElement("div");
+        row.className = "modal-row";
+        const close = document.createElement("button");
+        close.type = "button";
+        close.textContent = "Փակել";
+        close.addEventListener("click", () => backdrop.remove());
+        row.append(close);
+        actions.forEach((action) => row.append(action));
+        modal.append(row);
+        backdrop.append(modal);
+        backdrop.addEventListener("click", (event) => { if (event.target === backdrop) backdrop.remove(); });
+        modalRoot.replaceChildren(backdrop);
+        close.focus();
+        return backdrop;
+      }
+      function openPageMenu(index) {
+        if (!isAuthor) return;
+        const content = document.createElement("div");
+        content.className = "modal-options";
+        const write = document.createElement("button");
+        write.type = "button";
+        write.textContent = "Գրել տեքստ";
+        write.addEventListener("click", () => { modalRoot.replaceChildren(); startTextEditing(index); });
+        const upload = document.createElement("button");
+        upload.type = "button";
+        upload.textContent = "Ավելացնել ֆայլ";
+        upload.addEventListener("click", () => {
+          currentUploadPage = index;
+          modalRoot.replaceChildren();
+          fileInput.multiple = true;
+          fileInput.accept = "";
+          fileInput.click();
+        });
+        const clear = document.createElement("button");
+        clear.type = "button";
+        clear.textContent = "Մաքրել էջը";
+        clear.addEventListener("click", () => {
+          book.pages[index].elements = [];
+          render();
+          scheduleSave();
+          modalRoot.replaceChildren();
+        });
+        content.append(write, upload, clear);
+        showModal(`Էջ ${index + 1}`, content);
+      }
+      function startTextEditing(index) {
+        if (!isAuthor) return;
+        if (index !== currentPage) flipTo(index, index > currentPage ? "next" : "previous");
+        textEditing = true;
+        const body = bookElement.querySelector(`.page[data-page-index="${index}"] .page-body`);
+        if (!body) return;
+        const page = book.pages[index];
+        const textRecord = page.elements.find((element) => element.type === "text") || { id: makeId(), type: "text", html: "" };
+        if (!page.elements.includes(textRecord)) page.elements.unshift(textRecord);
+        body.innerHTML = "";
+        const tools = document.createElement("div");
+        tools.className = "editor-tools";
+        [
+          ["Թավ", "bold"], ["Շեղ", "italic"], ["Ընդգծել", "underline"],
+          ["Վերնագիր", "formatBlock", "h2"], ["Սովորական", "formatBlock", "p"]
+        ].forEach(([label, command, value]) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = label;
+          button.addEventListener("mousedown", (event) => event.preventDefault());
+          button.addEventListener("click", () => {
+            body.focus();
+            document.execCommand(command, false, value);
+          });
+          tools.append(button);
+        });
+        const fontSize = document.createElement("select");
+        fontSize.setAttribute("aria-label", "Տառաչափ");
+        [["3", "Սովորական"], ["2", "Փոքր"], ["4", "Մեծ"], ["5", "Շատ մեծ"]].forEach(([size, label]) => {
+          const option = document.createElement("option");
+          option.value = size;
+          option.textContent = label;
+          fontSize.append(option);
+        });
+        fontSize.addEventListener("change", () => {
+          body.focus();
+          document.execCommand("fontSize", false, fontSize.value);
+        });
+        tools.append(fontSize);
+        const editor = document.createElement("div");
+        editor.className = "editable-text";
+        editor.contentEditable = "true";
+        editor.setAttribute("role", "textbox");
+        editor.setAttribute("aria-multiline", "true");
+        editor.innerHTML = sanitizeHtml(textRecord.html);
+        editor.style.minHeight = "200px";
+        editor.addEventListener("input", () => {
+          textRecord.html = sanitizeHtml(editor.innerHTML);
+          scheduleSave();
+        });
+        const finish = document.createElement("button");
+        finish.type = "button";
+        finish.textContent = "Պահպանել տեքստը";
+        finish.addEventListener("click", () => {
+          textRecord.html = sanitizeHtml(editor.innerHTML);
+          if (!textRecord.html.trim()) page.elements = page.elements.filter((element) => element !== textRecord);
+          textEditing = false;
+          render();
+          scheduleSave();
+        });
+        body.append(tools, editor, finish);
+        editor.focus();
+      }
+      async function addFiles(files, pageIndex) {
+        if (!isAuthor) return;
+        if (!files.length) return;
+        let total = book.pages.reduce((sum, page) => sum + page.elements.reduce((sub, item) => sub + (item.size || 0), 0), 0);
+        const accepted = [];
+        for (const file of files) {
+          if (file.size > MAX_FILE_SIZE) {
+            notify(`«${file.name}» ֆայլը գերազանցում է 15 ՄԲ սահմանաչափը։`, true);
+            continue;
+          }
+          if (total + file.size > MAX_TOTAL_SIZE) {
+            notify("Գրքի ֆայլերի ընդհանուր ծավալը չի կարող գերազանցել 100 ՄԲ-ը։", true);
+            continue;
+          }
+          const kind = fileKind(file);
+          const extension = file.name.split(".").pop().toLowerCase();
+          const knownExtension = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "mp3", "wav", "ogg", "m4a", "mp4", "webm", "mov", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "txt", "csv"].includes(extension);
+          if (kind === "file" && !knownExtension && !file.type) {
+            notify(`«${file.name}» ֆայլի ձևաչափը չի ճանաչվում. կցումը բաց է թողնվել։`, true);
+            continue;
+          }
+          accepted.push(createElementRecord(file));
+          total += file.size;
+        }
+        if (!accepted.length) return;
+        book.pages[pageIndex].elements.push(...accepted);
+        render();
+        scheduleSave();
+      }
+      function addPage() {
+        if (!isAuthor) return;
+        book.pages.splice(currentPage + 1, 0, newPage());
+        currentPage++;
+        render();
+        scheduleSave();
+      }
+      function deletePage() {
+        if (!isAuthor) return;
+        if (book.pages.length <= 1) return;
+        book.pages.splice(currentPage, 1);
+        currentPage = Math.min(currentPage, book.pages.length - 1);
+        render();
+        scheduleSave();
+      }
+      function movePage() {
+        if (!isAuthor) return;
+        if (book.pages.length < 2) return;
+        const content = document.createElement("div");
+        const label = document.createElement("label");
+        label.textContent = "Տեղափոխել էջը համար՝ ";
+        const select = document.createElement("select");
+        for (let i = 0; i < book.pages.length; i++) {
+          const option = document.createElement("option");
+          option.value = String(i);
+          option.textContent = `${i + 1}. ${book.pages[i].title || "Անվերնագիր էջ"}`;
+          select.append(option);
+        }
+        select.value = String(currentPage);
+        label.append(select);
+        content.append(label);
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.textContent = "Տեղափոխել";
+        apply.addEventListener("click", () => {
+          const target = Number(select.value);
+          const [page] = book.pages.splice(currentPage, 1);
+          book.pages.splice(target, 0, page);
+          currentPage = target;
+          modalRoot.replaceChildren();
+          render();
+          scheduleSave();
+        });
+        showModal("Տեղափոխել էջը", content, [apply]);
+      }
+      function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+          reader.onerror = () => reject(reader.error || new Error("Ֆայլը կոդավորել չհաջողվեց։"));
+          reader.readAsDataURL(blob);
+        });
+      }
+      function base64ToBlob(data, mime) {
+        const binary = atob(data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new Blob([bytes], { type: mime || "application/octet-stream" });
+      }
+      async function makeExportBook() {
+        const exported = { version: 1, pages: [] };
+        for (const page of book.pages) {
+          const elements = [];
+          for (const item of page.elements) {
+            const copy = { ...item };
+            if (item.type === "text") copy.html = sanitizeHtml(item.html || "");
+            if (item.blob instanceof Blob) {
+              copy.data = await blobToBase64(item.blob);
+              delete copy.blob;
+            }
+            elements.push(copy);
+          }
+          exported.pages.push({ id: page.id, title: page.title || "", elements });
+        }
+        return exported;
+      }
+      async function exportBook() {
+        if (!isAuthor) return;
+        try {
+          const exported = await makeExportBook();
+          const json = JSON.stringify(exported).replace(/</g, "\\u003c");
+          const sections = [];
+          for (let i = 0; i < exported.pages.length; i++) {
+            const page = exported.pages[i];
+            const items = [];
+            for (const item of page.elements) {
+              if (item.type === "text") items.push(`<div>${sanitizeHtml(item.html || "")}</div>`);
+              else if (item.data) {
+                const src = `data:${escapeHtml(item.mime || "application/octet-stream")};base64,${item.data}`;
+                if (item.type === "image") items.push(`<img style="max-width:100%;width:${item.width || 100}%" src="${src}" alt="${escapeHtml(item.name)}">`);
+                else if (item.type === "audio" || item.type === "video") items.push(`<${item.type} controls src="${src}"></${item.type}>`);
+                else if (item.type === "pdf") items.push(`<embed type="application/pdf" src="${src}" style="width:100%;height:500px">`);
+                else items.push(`<p><a download="${escapeHtml(item.name)}" href="${src}">📎 ${escapeHtml(item.name)} (${formatSize(item.size || 0)}) — Ներբեռնել</a></p>`);
+              }
+            }
+            sections.push(`<section><h2>Էջ ${i + 1}${page.title ? " — " + escapeHtml(page.title) : ""}</h2>${items.join("\n")}</section>`);
+          }
+          const html = `<!doctype html><html lang="hy"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Իմ թվային գիրքը</title><style>body{max-width:850px;margin:30px auto;padding:0 18px;color:#332b25;background:#fffaf0;font:17px/1.7 Georgia,serif}section{padding:20px 0;border-bottom:1px solid #d8c9b2;break-after:page}h1,h2{color:#76513c}img,video,audio,embed{display:block;margin:14px 0;max-width:100%}#book-data{display:none}</style></head><body><h1>📖 Իմ թվային գիրքը</h1>${sections.join("\n")}<script id="book-data" type="application/json">${json}<\/script></body></html>`;
+          const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "իմ-թվային-գիրքը.html";
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 30000);
+          notify("Գիրքը արտահանվեց HTML ֆայլով։");
+        } catch (error) {
+          notify("Արտահանումը չհաջողվեց․ " + (error.message || "անհայտ սխալ"), true);
+        }
+      }
+      async function importBookFile(file) {
+        if (!isAuthor) return;
+        if (!file) return;
+        try {
+          const content = await file.text();
+          let data;
+          if (/\.html?$/i.test(file.name) || content.includes('id="book-data"')) {
+            const document = new DOMParser().parseFromString(content, "text/html");
+            const payload = document.getElementById("book-data");
+            if (!payload) throw new Error("HTML ֆայլում գրքի ներմուծման տվյալներ չկան։");
+            data = JSON.parse(payload.textContent);
+          } else data = JSON.parse(content);
+          if (!data || !Array.isArray(data.pages) || data.pages.length === 0) throw new Error("Ֆայլի կառուցվածքը գրքի վավեր տվյալներ չի պարունակում։");
+          let total = 0;
+          const pages = data.pages.map((page) => {
+            if (!page || !Array.isArray(page.elements)) throw new Error("Գրքի էջերից մեկի տվյալները վնասված են։");
+            const elements = page.elements.map((item) => {
+              if (!item || typeof item.type !== "string") throw new Error("Գրքի տարրի տվյալները վնասված են։");
+              if (item.type === "text") return { id: item.id || makeId(), type: "text", html: sanitizeHtml(item.html || "") };
+              const allowedTypes = new Set(["image", "pdf", "audio", "video", "file"]);
+              if (!allowedTypes.has(item.type)) throw new Error("Գրքի ֆայլի ձևաչափը չի աջակցվում։");
+              const blob = item.data ? base64ToBlob(item.data, item.mime) : item.blob;
+              if (!(blob instanceof Blob)) throw new Error(`«${item.name || "Անանուն"}» ֆայլի տվյալները բացակայում են։`);
+              total += blob.size;
+              if (blob.size > MAX_FILE_SIZE || total > MAX_TOTAL_SIZE) throw new Error("Ներմուծվող գիրքը գերազանցում է թույլատրված ֆայլի կամ ընդհանուր չափը։");
+              return { id: item.id || makeId(), type: item.type, name: String(item.name || "Ֆայլ"), mime: String(item.mime || blob.type || "application/octet-stream"), size: blob.size, blob, width: Math.max(15, Math.min(100, Number(item.width) || 100)), x: Number(item.x) || 0, y: Number(item.y) || 0 };
+            });
+            return { id: page.id || makeId(), title: String(page.title || ""), elements };
+          });
+          clearTimeout(saveTimer);
+          book = { pages };
+          currentPage = 0;
+          render();
+          await persistBook();
+          saveState.textContent = "Պահպանված է";
+          notify("Գիրքը ներմուծվեց և պահպանվեց։");
+        } catch (error) {
+          notify("Ներմուծումը չհաջողվեց․ " + (error.message || "ֆայլը սխալ է"), true);
+        }
+      }
+
+      document.getElementById("previousBtn").addEventListener("click", () => moveBy(-1));
+      document.getElementById("nextBtn").addEventListener("click", () => moveBy(1));
+      document.getElementById("addPageBtn").addEventListener("click", addPage);
+      document.getElementById("deletePageBtn").addEventListener("click", deletePage);
+      document.getElementById("movePageBtn").addEventListener("click", movePage);
+      document.getElementById("exportBtn").addEventListener("click", exportBook);
+      document.getElementById("importBtn").addEventListener("click", () => { if (isAuthor) importInput.click(); });
+      document.getElementById("printBtn").addEventListener("click", () => window.print());
+      document.getElementById("adminEntry").addEventListener("click", requestAuthorMode);
+      document.getElementById("authorExitBtn").addEventListener("click", () => {
+        textEditing = false;
+        setAuthorMode(false);
+        notify("Ընթերցողի ռեժիմը միացված է։");
+      });
+      window.addEventListener("hashchange", () => {
+        if (location.hash === "#admin") requestAuthorMode();
+      });
+      toc.addEventListener("change", () => {
+        if (toc.value !== "") flipTo(Number(toc.value), Number(toc.value) > currentPage ? "next" : "previous");
+      });
+      fileInput.addEventListener("change", () => {
+        if (currentUploadPage !== null) addFiles([...fileInput.files], currentUploadPage);
+        fileInput.value = "";
+      });
+      importInput.addEventListener("change", () => {
+        importBookFile(importInput.files[0]);
+        importInput.value = "";
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName) || modalRoot.childElementCount) return;
+        if (event.key === "ArrowRight") moveBy(1);
+        else if (event.key === "ArrowLeft") moveBy(-1);
+      });
+      window.addEventListener("resize", render);
+
+      (async () => {
+        try {
+          db = await openDatabase();
+          const stored = await readBook();
+          if (stored && Array.isArray(stored.pages) && stored.pages.length) book = stored;
+          else book = { pages: Array.from({ length: 20 }, newPage) };
+          render();
+          saveState.textContent = "Պահպանված է";
+          if (!stored) await persistBook();
+          if (location.hash === "#admin") requestAuthorMode();
+        } catch (error) {
+          saveState.textContent = "Պահպանումը հասանելի չէ";
+          notify(error.message || "Գիրքը բեռնել չհաջողվեց։", true);
+          if (!book.pages.length) book.pages = Array.from({ length: 20 }, newPage);
+          render();
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>
