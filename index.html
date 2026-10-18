@@ -154,7 +154,34 @@
     .file-card button { padding: 6px 9px; white-space: nowrap; }
     .media-item { margin: 14px 0; }
     .media-item audio, .media-item video { width: 100%; max-height: 350px; }
-    .pdf-item { width: 100%; height: 420px; margin: 12px 0; border: 1px solid #ddceb9; }
+    .pdf-frame {
+      margin: 16px 0;
+      overflow: hidden;
+      border: 1px solid #d5c4a8;
+      border-radius: 8px;
+      background: #f3eadb;
+      box-shadow: 0 5px 14px #604b3226, inset 0 0 0 3px #fffaf0;
+    }
+    .pdf-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 6px 12px;
+      border-bottom: 1px solid #dfd0b9;
+      color: #76695f;
+      background: linear-gradient(180deg, #fffdf8, #f5edde);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+    .pdf-title::before { content: "▤"; color: #9b7154; font-size: 15px; }
+    .pdf-item {
+      display: block;
+      width: 100%;
+      height: 460px;
+      border: 0;
+      background: var(--paper);
+    }
     .element-caption { margin-top: 4px; color: var(--muted); font-size: 12px; }
     .bottom-nav { min-height: 54px; margin-top: 13px; color: #fff8e8; }
     .bottom-nav .count { min-width: 110px; text-align: center; font-size: 15px; }
@@ -531,12 +558,17 @@
               enableImageMovement(wrapper, element);
             }
           } else if (element.type === "pdf") {
-            wrapper.className = "pdf-item-wrap";
+            wrapper.className = "pdf-frame";
+            const heading = document.createElement("div");
+            heading.className = "pdf-title";
+            heading.textContent = element.name || "PDF փաստաթուղթ";
             const frame = document.createElement("iframe");
             frame.className = "pdf-item";
-            frame.src = url;
+            frame.src = url + "#toolbar=0&navpanes=0&scrollbar=0&view=FitH";
             frame.title = element.name || "PDF նախադիտում";
+            frame.loading = "lazy";
             wrapper.append(frame);
+            wrapper.prepend(heading);
             if (isAuthor) wrapper.append(deleteButton(element.id));
           } else if (element.type === "audio" || element.type === "video") {
             wrapper.className = "media-item";
@@ -967,23 +999,137 @@
         try {
           const exported = await makeExportBook();
           const json = JSON.stringify(exported).replace(/</g, "\\u003c");
-          const sections = [];
-          for (let i = 0; i < exported.pages.length; i++) {
-            const page = exported.pages[i];
-            const items = [];
-            for (const item of page.elements) {
-              if (item.type === "text") items.push(`<div>${sanitizeHtml(item.html || "")}</div>`);
-              else if (item.data) {
-                const src = `data:${escapeHtml(item.mime || "application/octet-stream")};base64,${item.data}`;
-                if (item.type === "image") items.push(`<img style="max-width:100%;width:${item.width || 100}%" src="${src}" alt="${escapeHtml(item.name)}">`);
-                else if (item.type === "audio" || item.type === "video") items.push(`<${item.type} controls src="${src}"></${item.type}>`);
-                else if (item.type === "pdf") items.push(`<embed type="application/pdf" src="${src}" style="width:100%;height:500px">`);
-                else items.push(`<p><a download="${escapeHtml(item.name)}" href="${src}">📎 ${escapeHtml(item.name)} (${formatSize(item.size || 0)}) — Ներբեռնել</a></p>`);
-              }
+          const renderExportElement = (item) => {
+            if (item.type === "text") return `<div class="text-item">${sanitizeHtml(item.html || "")}</div>`;
+            if (!item.data) return "";
+            const source = `data:${escapeHtml(item.mime || "application/octet-stream")};base64,${item.data}`;
+            if (item.type === "image") {
+              const x = Number(item.x) || 0;
+              const y = Number(item.y) || 0;
+              return `<div class="image-item" style="width:${Math.max(15, Math.min(100, Number(item.width) || 100))}%;transform:translate(${x}%,${y}%)"><img src="${source}" alt="${escapeHtml(item.name || "Գրքի նկար")}"></div>`;
             }
-            sections.push(`<section><h2>Էջ ${i + 1}${page.title ? " — " + escapeHtml(page.title) : ""}</h2>${items.join("\n")}</section>`);
+            if (item.type === "audio" || item.type === "video") return `<div class="media-item"><${item.type} controls preload="metadata" src="${source}"></${item.type}></div>`;
+            if (item.type === "pdf") return `<div class="pdf-frame"><div class="pdf-title">${escapeHtml(item.name || "PDF փաստաթուղթ")}</div><iframe class="pdf-item" src="${source}#toolbar=0&amp;navpanes=0&amp;scrollbar=0&amp;view=FitH" title="${escapeHtml(item.name || "PDF նախադիտում")}" loading="lazy"></iframe></div>`;
+            return `<div class="file-card"><span class="file-icon">📎</span><div class="file-info"><div class="file-name">${escapeHtml(item.name || "Ֆայլ")}</div><div class="file-size">${formatSize(item.size || 0)}</div></div><a class="download-link" download="${escapeHtml(item.name || "file")}" href="${source}">Ներբեռնել</a></div>`;
+          };
+          const renderExportPage = (page, index) => {
+            const title = page.title
+              ? `<div class="page-title-display">${escapeHtml(page.title)}</div>`
+              : `<div class="page-title-display"></div>`;
+            const elements = page.elements.map(renderExportElement).join("");
+            const emptyHint = page.elements.length ? "" : `<div class="empty-hint">Այս էջը դեռ դատարկ է։</div>`;
+            return `<article class="page" data-page-index="${index}">${title}<div class="page-body">${elements}${emptyHint}</div><div class="page-number">${index + 1}</div></article>`;
+          };
+          const spreads = [];
+          for (let i = 0; i < exported.pages.length; i += 2) {
+            const left = renderExportPage(exported.pages[i], i);
+            const right = exported.pages[i + 1] ? renderExportPage(exported.pages[i + 1], i + 1) : `<article class="page blank-page" aria-hidden="true"></article>`;
+            spreads.push(`<div class="spread${i === 0 ? " active" : ""}" data-spread-index="${i / 2}">${left}${right}</div>`);
           }
-          const html = `<!doctype html><html lang="hy"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Իմ թվային գիրքը</title><style>body{max-width:850px;margin:30px auto;padding:0 18px;color:#332b25;background:#fffaf0;font:17px/1.7 Georgia,serif}section{padding:20px 0;border-bottom:1px solid #d8c9b2;break-after:page}h1,h2{color:#76513c}img,video,audio,embed{display:block;margin:14px 0;max-width:100%}#book-data{display:none}</style></head><body><h1>📖 Իմ թվային գիրքը</h1>${sections.join("\n")}<script id="book-data" type="application/json">${json}<\/script></body></html>`;
+          const tocOptions = exported.pages.map((page, index) =>
+            `<option value="${index}">${index + 1}. ${escapeHtml(page.title.trim() || "Անվերնագիր էջ")}</option>`
+          ).join("");
+          const html = `<!doctype html>
+<html lang="hy">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Իմ թվային գիրքը</title>
+  <style>
+    :root{--ink:#332b25;--muted:#76695f;--paper:#fffaf0;--desk:#29352f}
+    *{box-sizing:border-box}
+    body{margin:0;min-width:320px;min-height:100vh;color:var(--ink);background:radial-gradient(ellipse at center,#526055 0,var(--desk) 70%);font:17px/1.7 Georgia,"Noto Serif Armenian",serif}
+    button,select{font:inherit;border:1px solid #c9b49b;border-radius:7px;padding:8px 12px;color:#43372d;background:#fffaf0;cursor:pointer}
+    button:hover{background:#f2e7d5}button:disabled{opacity:.48;cursor:not-allowed}
+    .app{max-width:1320px;margin:auto;padding:18px 22px 24px}
+    .topbar,.toolbar,.bottom-nav{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px}
+    .topbar{justify-content:space-between;margin:0 auto 14px;color:#fff8e8}
+    h1{margin:0;font-size:clamp(20px,3vw,28px);font-weight:500}
+    .toolbar{margin:0 auto 14px}.toolbar select{max-width:min(380px,55vw)}
+    .book{position:relative;width:min(1100px,100%);min-height:min(70vh,720px);margin:auto;perspective:1900px;filter:drop-shadow(0 24px 24px #10191480)}
+    .book:before{position:absolute;z-index:4;top:0;bottom:0;left:50%;width:30px;content:"";transform:translateX(-50%);background:linear-gradient(90deg,#6d543d33,#fff8e566 44%,#57432e55);pointer-events:none}
+    .spread{display:none;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:min(70vh,720px)}
+    .spread.active{display:grid}
+    .page{position:relative;min-width:0;min-height:620px;padding:28px clamp(20px,4vw,48px) 54px;overflow:auto;background:repeating-linear-gradient(0deg,transparent 0 31px,#bda98b15 32px),var(--paper);box-shadow:inset 0 0 25px #8c715126,inset 0 0 0 1px #d7c6aa}
+    .page:first-child{border-radius:8px 0 0 8px;box-shadow:inset -12px 0 18px -18px #3d2b1a,inset 0 0 0 1px #d7c6aa}
+    .page:last-child{border-radius:0 8px 8px 0;box-shadow:inset 12px 0 18px -18px #3d2b1a,inset 0 0 0 1px #d7c6aa}
+    .page-title-display{min-height:31px;width:100%;margin:0 0 18px;padding:0 0 10px;border-bottom:1px solid #d8c9b2;font-size:19px;font-weight:bold;overflow-wrap:anywhere}
+    .page-body{min-height:460px;overflow-wrap:anywhere}.page-body img{display:block;max-width:100%}
+    .page-number{position:absolute;bottom:15px;left:0;width:100%;color:#897963;font-size:13px;text-align:center}
+    .empty-hint{color:#ac9e8a}.image-item{position:relative;max-width:100%;margin:14px 0}
+    .image-item img{width:100%;height:auto;border-radius:3px}
+    .media-item{margin:14px 0}.media-item audio,.media-item video{width:100%;max-height:350px}
+    .pdf-frame{margin:16px 0;overflow:hidden;border:1px solid #d5c4a8;border-radius:8px;background:#f3eadb;box-shadow:0 5px 14px #604b3226,inset 0 0 0 3px #fffaf0}
+    .pdf-title{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 12px;border-bottom:1px solid #dfd0b9;color:#76695f;background:linear-gradient(180deg,#fffdf8,#f5edde);font-size:12px;overflow-wrap:anywhere}
+    .pdf-title:before{content:"▤";color:#9b7154;font-size:15px}
+    .pdf-item{display:block;width:100%;height:460px;border:0;background:var(--paper)}
+    .file-card{display:flex;align-items:center;gap:12px;margin:12px 0;padding:12px;border:1px solid #ddceb9;border-radius:9px;background:#fffdf7c9}
+    .file-icon{font-size:25px}.file-info{min-width:0;flex:1}.file-name{overflow-wrap:anywhere;font-weight:bold}.file-size{color:var(--muted);font-size:12px}
+    .download-link{padding:6px 9px;border:1px solid #c9b49b;border-radius:7px;color:#43372d;background:#fffaf0;text-decoration:none;white-space:nowrap}
+    .bottom-nav{min-height:54px;margin-top:13px;color:#fff8e8}.count{min-width:130px;text-align:center;font-size:15px}
+    .turning{transform-style:preserve-3d}.turn-forward{transform-origin:left center;animation:turnForward .48s ease-in-out}.turn-backward{transform-origin:right center;animation:turnBackward .48s ease-in-out}
+    @keyframes turnForward{0%{transform:rotateY(0)}48%{transform:rotateY(-82deg)}100%{transform:rotateY(0)}}
+    @keyframes turnBackward{0%{transform:rotateY(0)}48%{transform:rotateY(82deg)}100%{transform:rotateY(0)}}
+    @media(max-width:700px){.app{padding:12px 12px 20px}.topbar{align-items:flex-start;gap:10px}.book{min-height:72vh}.book:before{display:none}.spread,.spread.active{display:block;min-height:72vh}.page{display:none;min-height:72vh;padding:22px 22px 48px;border-radius:8px!important}.page.active{display:block}.blank-page{display:none!important}.page-body{min-height:55vh}.page-number{bottom:12px}.bottom-nav{gap:7px}.bottom-nav button,.toolbar button,.toolbar select{padding:7px 9px;font-size:13px}}
+    @media print{body{background:#fff}.app{max-width:none;padding:0}.topbar,.toolbar,.bottom-nav{display:none!important}.book{display:block;width:100%;filter:none}.book:before{display:none}.spread,.spread.active{display:grid!important;min-height:0;height:auto;page-break-after:always}.page,.page.active{display:block!important;min-height:0;height:auto;overflow:visible;border:0;border-radius:0;box-shadow:none!important;page-break-after:avoid}.page-body{min-height:0}.pdf-item{height:650px}.image-item img{max-height:650px;object-fit:contain}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar"><h1>📖 Իմ թվային գիրքը</h1></header>
+    <nav class="toolbar" aria-label="Բովանդակության ցանկ">
+      <label class="visually-hidden" for="toc">Բովանդակության ցանկ</label>
+      <select id="toc" title="Բովանդակության ցանկ"><option value="">Բովանդակության ցանկ</option>${tocOptions}</select>
+    </nav>
+    <section id="book" class="book" aria-label="Թվային գիրք">${spreads.join("\n")}</section>
+    <nav class="bottom-nav" aria-label="Էջերի համարակալում">
+      <button id="previousBtn" type="button" aria-label="Նախորդ էջ">← Նախորդ</button>
+      <span id="pageCount" class="count"></span>
+      <button id="nextBtn" type="button" aria-label="Հաջորդ էջ">Հաջորդ →</button>
+    </nav>
+  </main>
+  <script id="book-data" type="application/json">${json}<\/script>
+  <script>
+    (()=>{"use strict";
+      const pages=JSON.parse(document.getElementById("book-data").textContent).pages;
+      const spreads=[...document.querySelectorAll(".spread")];
+      const toc=document.getElementById("toc");
+      const count=document.getElementById("pageCount");
+      let currentPage=0;
+      const mobile=()=>matchMedia("(max-width:700px)").matches;
+      function render(){
+        const spreadIndex=mobile()?Math.floor(currentPage/2):Math.floor(currentPage/2);
+        spreads.forEach((spread,index)=>spread.classList.toggle("active",index===spreadIndex));
+        document.querySelectorAll(".page[data-page-index]").forEach(page=>page.classList.toggle("active",Number(page.dataset.pageIndex)===currentPage));
+        toc.value=String(currentPage);
+        count.textContent=mobile()?("Էջ "+(currentPage+1)+" / "+pages.length):("Էջ "+(currentPage+1)+(currentPage+1<pages.length?"–"+(currentPage+2):"")+" / "+pages.length);
+        document.getElementById("previousBtn").disabled=currentPage===0;
+        document.getElementById("nextBtn").disabled=mobile()?currentPage>=pages.length-1:currentPage>=pages.length-2;
+      }
+      function goTo(index,direction){
+        if(index<0||index>=pages.length||index===currentPage)return;
+        const active=document.querySelector(".spread.active");
+        active.classList.add("turning",direction>0?"turn-forward":"turn-backward");
+        setTimeout(()=>{currentPage=index;render()},240);
+      }
+      function turn(direction){
+        const step=mobile()||currentPage%2===1?1:2;
+        goTo(currentPage+Math.sign(direction)*step,direction);
+      }
+      document.getElementById("previousBtn").addEventListener("click",()=>turn(-1));
+      document.getElementById("nextBtn").addEventListener("click",()=>turn(1));
+      toc.addEventListener("change",()=>{if(toc.value!==""){const target=Number(toc.value);goTo(target,target>currentPage?1:-1)}});
+      document.addEventListener("keydown",event=>{
+        if(["INPUT","SELECT","TEXTAREA"].includes(event.target.tagName))return;
+        if(event.key==="ArrowRight")turn(1);
+        else if(event.key==="ArrowLeft")turn(-1);
+      });
+      window.addEventListener("resize",render);
+      render();
+    })();
+  <\/script>
+</body>
+</html>`;
           const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
           const link = document.createElement("a");
           link.href = url;
