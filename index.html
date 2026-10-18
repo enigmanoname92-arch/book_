@@ -348,6 +348,7 @@
         }
         adminDialogOpen = true;
         const form = document.createElement("form");
+        form.id = "authorLoginForm";
         const label = document.createElement("label");
         label.textContent = "Հեղինակի գաղտնաբառ";
         const input = document.createElement("input");
@@ -360,6 +361,7 @@
         form.append(label);
         const unlock = document.createElement("button");
         unlock.type = "submit";
+        unlock.setAttribute("form", form.id);
         unlock.textContent = "Մուտք գործել";
         const backdrop = showModal("Հեղինակի մուտք", form, [unlock]);
         const observer = new MutationObserver(() => {
